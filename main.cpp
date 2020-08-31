@@ -1,6 +1,5 @@
 #include <iostream>
 #include <vector>
-#include <random>
 #include <cstdlib>
 #include <algorithm>
 #include <cassert>
@@ -27,7 +26,7 @@ int main(int argc, char** argv){
 	const int S = 99999;
 	vector<double> v(S), r(S * ws);
     srand(rk + time(NULL));
-	int MAX_TRIAL = 100;
+	int MAX_TRIAL = 10;
 	for(int trial = 0; trial < MAX_TRIAL; ++trial){
 	    if(!rk) cout << "trial - " << trial << endl;
         generate(v.begin(), v.end(), []() { return (double) (rand() / (double) RAND_MAX); });
@@ -35,7 +34,7 @@ int main(int argc, char** argv){
         MPI_Barrier(MPI_COMM_WORLD);
 
         auto part1 = steady_clock::now();
-        auto parmed   = par::median(v);
+        auto parmed= par::median(begin(v), end(v));
         auto part2 = steady_clock::now();
 
         if(!rk) {

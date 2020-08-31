@@ -74,6 +74,7 @@ namespace par {
         if constexpr (std::is_same<T, char>::value)                     return MPI_CHAR;
         return MPI_DATATYPE_NULL;
     }
+    namespace {
     template<class T>
     double median(std::vector<T> x, size_t look_for) {
         std::random_device rd;
@@ -122,15 +123,21 @@ namespace par {
             }
         } while(true);
     }
+    }
     template<class T>
-    double median(const std::vector<T>& x){
+    double median(const std::vector<T>& x) {
         size_t total_size, size = x.size();
         MPI_Allreduce(&size, &total_size, 1, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
         if(total_size % 2) {
-            return par::median(x, total_size / 2);
+            return median<T>(x, total_size / 2);
         } else {
-            return 0.5 * (par::median(x, total_size / 2 - 1) + par::median(x, total_size / 2));
+            return 0.5 * (median<T>(x, total_size / 2 - 1) + median<T>(x, total_size / 2));
         }
+    }
+    template<class InputIterator>
+    double median(InputIterator beg, InputIterator end) {
+        std::vector<typename std::iterator_traits<InputIterator>::value_type> x(beg, end);
+        return median(x);
     }
 }
 
