@@ -7,25 +7,21 @@
 #include <vector>
 #include <mpi.h>
 #include <random>
+#include <iostream>
+#include <iterator>
+using namespace std;
+template<class T> void split_vec(std::vector<T>& vec, T pivot, std::vector<T>& le, std::vector<T>& gr, std::vector<T>& pi){
 
-template<class T> void split_vec(const std::vector<T>& vec, T pivot, std::vector<T>& le, std::vector<T>& gr, std::vector<T>& pi){
-    le.clear();
-    gr.clear();
-    pi.clear();
-    le.reserve(vec.size()/3);
-    gr.reserve(vec.size()/3);
-    pi.reserve(vec.size()/3);
-    for(auto v : vec) {
-        if(v < pivot)
-            le.push_back(v);
-        else if (v > pivot)
-            gr.push_back(v);
-        else
-            pi.push_back(v);
-    }
+    auto m_it1 = std::partition(std::begin(vec), std::end(vec), [pivot](const auto& em){ return em < pivot; });
+    auto m_it2 = std::partition(m_it1, std::end(vec), [pivot](const auto& em){ return em == pivot; });
+    auto m_it3 = std::partition(m_it2, std::end(vec), [pivot](const auto& em){ return !(em > pivot); });
+
+    le.assign(std::begin(vec), m_it1);
+    pi.assign(m_it1, m_it2);
+    gr.assign(m_it2, std::end(vec));
 }
 template<class T> double nlogn_median(std::vector<T> v){
-    sort(v.begin(), v.end());
+    std::sort(v.begin(), v.end());
     if(v.size() % 2)
         return v.at((v.size() / 2.0));
     else
@@ -89,15 +85,15 @@ namespace par {
          */
         std::vector<T> le, gr, pi;
         std::array<size_t, 3> split_sizes{};
+        size_t size, total_size, lb, ub, ipivot;
         do {
-            size_t size = x.size(), total_size, lb, ub, ipivot;
-            T pivot;
+            size = x.size();
+	    T pivot;
             MPI_Reduce(&size, &total_size, 1, get_mpi_type<size_t>(), MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Scan(&size, &ub, 1, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
             lb = ub - size;
-            if (!rk) {
-                ipivot = (rd() % total_size);
-            }
+            ipivot = (rd() % total_size);
+    
             MPI_Bcast(&ipivot, 1, get_mpi_type<size_t>(), 0, MPI_COMM_WORLD);
             if(lb <= ipivot && ipivot < ub) {
                 pivot = x.at(ipivot - lb);
@@ -114,11 +110,11 @@ namespace par {
             MPI_Allreduce(MPI_IN_PLACE, &split_sizes, 3, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
 
             if(look_for < split_sizes[0]) {
-                x = le;
+                x = std::move(le);
             } else if (look_for < split_sizes[0] + split_sizes[2]) {
                 return pivot;
             } else {
-                x = gr;
+                x = std::move(gr);
                 look_for = look_for - split_sizes[0] - split_sizes[2];
             }
         } while(true);
