@@ -20,6 +20,16 @@ template<class T> void split_vec(std::vector<T>& vec, T pivot, std::vector<T>& l
     pi.assign(m_it1, m_it2);
     gr.assign(m_it2, std::end(vec));
 }
+
+template<class T>
+std::tuple<typename std::vector<T>::iterator, typename std::vector<T>::iterator>
+split_vec(std::vector<T>& vec, T pivot){
+    auto m_it1 = std::partition(std::begin(vec), std::end(vec), [pivot](const auto& em){ return em < pivot; });
+    auto m_it2 = std::partition(m_it1, std::end(vec), [pivot](const auto& em){ return em == pivot; });
+    //auto m_it3 = std::partition(m_it2, std::end(vec), [pivot](const auto& em){ return !(em > pivot); });
+    return {m_it1, m_it2};
+}
+
 template<class T> double nlogn_median(std::vector<T> v){
     std::sort(v.begin(), v.end());
     if(v.size() % 2)
@@ -83,12 +93,12 @@ namespace par {
          * 3. All: keeps le if SUM(le_p) > SUM(gr_p) for all p in procs
          * 4. Go back to 1.
          */
-        std::vector<T> le, gr, pi;
         std::array<size_t, 3> split_sizes{};
         size_t size, total_size, lb, ub, ipivot;
+        T pivot;
         do {
             size = x.size();
-	    T pivot;
+
             MPI_Reduce(&size, &total_size, 1, get_mpi_type<size_t>(), MPI_SUM, 0, MPI_COMM_WORLD);
             MPI_Scan(&size, &ub, 1, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
             lb = ub - size;
@@ -103,19 +113,22 @@ namespace par {
                 MPI_Recv(&pivot, 1, get_mpi_type<T>(), MPI_ANY_SOURCE, 999, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
             }
 
-            split_vec(x, pivot, le, gr, pi);
+            auto[lit, pit] = split_vec(x, pivot);
 
-            split_sizes = {le.size(), gr.size(), pi.size()};
+            size_t le_size = std::distance(std::begin(x), lit),
+                   pi_size = std::distance(lit, pit);
 
-            MPI_Allreduce(MPI_IN_PLACE, &split_sizes, 3, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
+            split_sizes = {le_size, pi_size};
+
+            MPI_Allreduce(MPI_IN_PLACE, &split_sizes, 2, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
 
             if(look_for < split_sizes[0]) {
-                x = std::move(le);
-            } else if (look_for < split_sizes[0] + split_sizes[2]) {
+                x = std::vector<T>(std::begin(x), lit);
+            } else if (look_for < split_sizes[0] + split_sizes[1]) {
                 return pivot;
             } else {
-                x = std::move(gr);
-                look_for = look_for - split_sizes[0] - split_sizes[2];
+                x = std::vector<T>(pit, std::end(x));
+                look_for = look_for - split_sizes[0] - split_sizes[1];
             }
         } while(true);
     }

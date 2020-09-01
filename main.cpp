@@ -6,8 +6,10 @@
 #include <mpi.h>
 #include <chrono>
 #include <iomanip>
+
 using namespace std::chrono;
 #include "median.hpp"
+
 template<class T>
 struct format {
     T v;
@@ -23,7 +25,7 @@ int main(int argc, char** argv){
     int ws,rk;
     MPI_Comm_size(MPI_COMM_WORLD, &ws);
     MPI_Comm_rank(MPI_COMM_WORLD, &rk);
-	const int S = 99999;
+	const int S = 999999;
 	vector<double> v(S), r(S * ws);
     srand(rk + time(NULL));
 	int MAX_TRIAL = 10;
@@ -34,15 +36,15 @@ int main(int argc, char** argv){
         MPI_Barrier(MPI_COMM_WORLD);
 
         auto part1 = steady_clock::now();
-        auto parmed= par::median(begin(v), end(v));
+        auto parmed= par::median(v);
         auto part2 = steady_clock::now();
-
         if(!rk) {
             std::cout << "par median: "  << format(parmed) << format(duration_cast<milliseconds>(part2-part1).count()) << std::endl;
             auto seqt1 = steady_clock::now();
-            auto med   = median(r);
+	        std::nth_element(r.begin(), r.begin() + r.size() / 2, r.end());
+            auto med   = r.at(r.size() / 2);
             auto seqt2 = steady_clock::now();
-
+//
             std::cout << std::setw(10) << "qs  median: " << format(med) << format(duration_cast<milliseconds>(seqt2-seqt1).count()) << std::endl;
             seqt1 = steady_clock::now();
             med   = nlogn_median(r);
