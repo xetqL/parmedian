@@ -107,19 +107,20 @@ namespace par {
                 MPI_Recv(&pivot, 1, get_mpi_type<T>(), MPI_ANY_SOURCE, 999, MPI_COMM_WORLD, MPI_STATUSES_IGNORE);
             }
 
-            split_vec(x, pivot, le, gr, pi);
+            auto li = std::partition(x.begin(), x.end(), [&pivot](auto v){return v < pivot;});
+            auto pi = std::partition(li, x.end(), [&pivot](auto v){return v == pivot;});
 
-            split_sizes = {le.size(), gr.size(), pi.size()};
+            split_sizes = {std::distance(x.begin(), li), std::distance(li, pi)};
 
-            MPI_Allreduce(MPI_IN_PLACE, &split_sizes, 3, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
+            MPI_Allreduce(MPI_IN_PLACE, &split_sizes, 2, get_mpi_type<size_t>(), MPI_SUM, MPI_COMM_WORLD);
 
             if(look_for < split_sizes[0]) {
-                x = le;
-            } else if (look_for < split_sizes[0] + split_sizes[2]) {
+                x = std::vector<T>(x.begin(), li);
+            } else if (look_for < split_sizes[0] + split_sizes[1]) {
                 return pivot;
             } else {
-                x = gr;
-                look_for = look_for - split_sizes[0] - split_sizes[2];
+                x = std::vector<T>(pi, x.end());
+                look_for = look_for - split_sizes[0] - split_sizes[1];
             }
         } while(true);
     }
